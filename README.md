@@ -28,3 +28,10 @@ python github_tags.py --token xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -r matter
 
 in this case the final number is the github issue number (you can pass multiple
 issue numbers if you want).
+
+
+Added a new script to copy tasks from Jira to Github and link with the github issue field, executing for example:
+
+```sh
+python create_github_from_jira.py --jira-username jesus@mattermost.com --jira-token xxxxxxxxxxxxxxxxxxxxxxxx --github-token xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -r mattermost/mattermost-server -l "Tech/Go" -l "Up For Grabs" -l "Difficulty/1:Easy" -l "Area/Technical Debt" -l "Help Wanted" 1234051
+```
