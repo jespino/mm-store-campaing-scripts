@@ -1,16 +1,17 @@
 import click
 import requests
+import pprint
 from requests.auth import HTTPBasicAuth
 from github import Github
 
-header = '''
-If you're interested please comment here and come [join our "Contributors" community channel](https://community.mattermost.com/core/channels/tickets) on our daily build server, where you can discuss questions with community members and the Mattermost core team. For technical advice or questions, please  [join our "Developers" community channel](https://community.mattermost.com/core/channels/developers).
+footer = '''
+----
+
+If you're interested please comment here and come [join our "Contributors" community channel](https://community.mattermost.com/core/channels/tickets) on our daily build server, where you can discuss questions with community members and the Mattermost core team. For technical advice or questions, please [join our "Developers" community channel](https://community.mattermost.com/core/channels/developers).
 
 New contributors please see our [Developer's Guide](https://developers.mattermost.com/contribute/getting-started/).
 
-----
-
-**Notes**: [Jira ticket](https://mattermost.atlassian.net/browse/MM-{{TICKET}})
+JIRA: https://mattermost.atlassian.net/browse/MM-{{TICKET}}
 '''
 
 @click.command()
@@ -19,8 +20,10 @@ New contributors please see our [Developer's Guide](https://developers.mattermos
 @click.option('--github-token', '-g', prompt='Your Github access token', help='The token used to authenticate the user against Github.')
 @click.option('--repo', '-r', prompt='Repository', help='The repository which contains the issues. E.g. mattermost/mattermost-server')
 @click.option('--labels', '-l', prompt='Labels', help='The labels to set to the issues', multiple=True)
+@click.option('--dry-run/--no-dry-run', help='Skip actually creating any tickets', default=False)
+@click.option('--debug/--no-debug', help='Dump debugging information.', default=False)
 @click.argument('issue-numbers', nargs=-1)
-def cli(jira_token, jira_username, github_token, repo, labels, issue_numbers):
+def cli(jira_token, jira_username, github_token, repo, labels, dry_run, debug, issue_numbers):
     if len(issue_numbers) < 1:
         print("You need to pass at least one issue number")
         return
@@ -39,8 +42,47 @@ def cli(jira_token, jira_username, github_token, repo, labels, issue_numbers):
         )
         data = resp.json()
 
+        if debug:
+            pprint.pprint(data)
+
+        renderedContent = []
+        lastLanguage = ''
+        for content in data['fields']['description']['content']:
+            # Keep track of the last language seen to annotate the next code block encountered.
+            if 'attrs' in content:
+                if 'language' in content['attrs']:
+                    lastLanguage = content['attrs']['language']
+
+            if content['type'] == 'codeBlock':
+                renderedContent.append("```" + lastLanguage + "\n" + content['content'][0]['text'] + "\n```")
+                lastLanguage = ''
+
+            elif content['type'] == 'paragraph':
+                elements = []
+                for element in content['content']:
+                    if element['type'] == 'text':
+                        text = element['text']
+
+                        # Resolve inline code or links
+                        if 'marks' in element:
+                            if 'type' in element['marks'][0]:
+                                if element['marks'][0]['type'] == 'code':
+                                    text = '`' + text + '`'
+                                if element['marks'][0]['type'] == 'link':
+                                    text = '[' + text + '](' + element['marks'][0]['attrs']['href'] + ')'
+
+                        elements.append(text)
+
+                renderedContent.append("".join(elements))
+
         title = data['fields']['summary']
-        description = header.replace("{{TICKET}}", issue_number) + "\n" + "\n\n".join(map(lambda c: c['content'][0]['text'], data['fields']['description']['content']))
+        description = "\n\n".join(renderedContent) + "\n" + footer.replace("{{TICKET}}", issue_number)
+
+        if debug or dry_run:
+            print(description)
+
+        if dry_run:
+            return
 
         try:
             new_issue = r.create_issue(
@@ -51,6 +93,8 @@ def cli(jira_token, jira_username, github_token, repo, labels, issue_numbers):
         except Exception as e:
             print("Unable to create issue for jira issue {}. error: {}".format(issue_number, e))
             return
+
+        print("Created ticket: {}".format(new_issue.html_url))
 
         try:
             resp = requests.put(
