@@ -78,10 +78,14 @@ def cli(jira_token, jira_username, github_token, repo, labels, dry_run, debug, i
         title = data['fields']['summary']
         description = "\n\n".join(renderedContent) + "\n" + footer.replace("{{TICKET}}", issue_number)
 
-        if debug or dry_run:
-            print(description)
-
         if dry_run:
+            print '''We haven't created the github ticket because --dry-run flag was detected. Ticket information:
+
+{}
+{}
+
+{}
+'''.format(title, "=" * len(title), description)
             return
 
         try:
