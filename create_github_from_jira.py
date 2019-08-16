@@ -4,6 +4,10 @@ import pprint
 from requests.auth import HTTPBasicAuth
 from github import Github
 
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
 footer = '''
 ----
 
