@@ -27,6 +27,7 @@ JIRA: https://mattermost.atlassian.net/browse/MM-{{TICKET}}
 @click.option('--dry-run/--no-dry-run', help='Skip actually creating any tickets', default=False)
 @click.option('--debug/--no-debug', help='Dump debugging information.', default=False)
 @click.argument('issue-numbers', nargs=-1)
+
 def cli(jira_token, jira_username, github_token, repo, labels, dry_run, debug, issue_numbers):
     if len(issue_numbers) < 1:
         print("You need to pass at least one issue number")
@@ -62,20 +63,13 @@ def cli(jira_token, jira_username, github_token, repo, labels, dry_run, debug, i
                 lastLanguage = ''
 
             elif content['type'] == 'paragraph':
+                renderedContent.append(renderParagraph(content))
+
+            elif content['type'] == 'bulletList':
                 elements = []
-                for element in content['content']:
-                    if element['type'] == 'text':
-                        text = element['text']
-
-                        # Resolve inline code or links
-                        if 'marks' in element:
-                            if 'type' in element['marks'][0]:
-                                if element['marks'][0]['type'] == 'code':
-                                    text = '`' + text + '`'
-                                if element['marks'][0]['type'] == 'link':
-                                    text = '[' + text + '](' + element['marks'][0]['attrs']['href'] + ')'
-
-                        elements.append(text)
+                for listItem in content['content']:
+                    if listItem['type'] == 'paragraph':
+                        elements.append('* ' + renderParagraph(listItem) + '\n')
 
                 renderedContent.append("".join(elements))
 
@@ -118,6 +112,35 @@ def cli(jira_token, jira_username, github_token, repo, labels, dry_run, debug, i
         except Exception as e:
             print("Unable to update jira issue {}. error: {}".format(issue_number, e))
             return
+
+
+def renderParagraph(content):
+    elements = []
+    for element in content['content']:
+        if element['type'] == 'text':
+            text = element['text']
+
+            # Resolve inline code or links
+            if 'marks' in element:
+                if 'type' in element['marks'][0]:
+                    if element['marks'][0]['type'] == 'code':
+                        text = '`' + text + '`'
+                    if element['marks'][0]['type'] == 'link':
+                        text = '[' + text + '](' + element['marks'][0]['attrs']['href'] + ')'
+
+            elements.append(text)
+
+        # {u'attrs': {u'url': u'https://mattermost.atlassian.net/browse/MM-17889'},
+        #  u'type': u'inlineCard'}
+        elif element['type'] == 'inlineCard':
+            if 'attrs' in element:
+                if 'url' in element['attrs']:
+                        text = '[' + element['attrs']['url'] + '](' + element['attrs']['url'] + ')'
+
+            elements.append(text)
+
+    return "".join(elements)
+
 
 if __name__ == "__main__":
     cli()
